@@ -98,5 +98,225 @@
   "title": "Sunset Waves",
   "cat": "Beach",
   "file": "beach-sunset-waves.jpg"
+ },
+ {
+  "title": "Big Ben",
+  "cat": "City",
+  "file": "city-big-ben.jpg"
+ },
+ {
+  "title": "Brooklyn",
+  "cat": "City",
+  "file": "city-brooklyn.jpg"
+ },
+ {
+  "title": "Cherry Blossom Lane",
+  "cat": "City",
+  "file": "city-cherry-blossom-lane.jpg"
+ },
+ {
+  "title": "City Park",
+  "cat": "City",
+  "file": "city-city-park.jpg"
+ },
+ {
+  "title": "City Walk",
+  "cat": "City",
+  "file": "city-city-walk.jpg"
+ },
+ {
+  "title": "Miami",
+  "cat": "City",
+  "file": "city-miami.jpg"
+ },
+ {
+  "title": "New York",
+  "cat": "City",
+  "file": "city-new-york.jpg"
+ },
+ {
+  "title": "Singapore",
+  "cat": "City",
+  "file": "city-singapore.jpg"
+ },
+ {
+  "title": "Stanley Park",
+  "cat": "City",
+  "file": "city-stanley-park.jpg"
+ },
+ {
+  "title": "Vancouver In The Summer",
+  "cat": "City",
+  "file": "city-vancouver-in-the-summer.jpg"
+ },
+ {
+  "title": "Veranda Sky",
+  "cat": "City",
+  "file": "city-veranda-sky.jpg"
+ },
+ {
+  "title": "Whistler Town",
+  "cat": "City",
+  "file": "city-whistler-town.jpg"
+ },
+ {
+  "title": "Banyan Tree",
+  "cat": "Country",
+  "file": "country-banyan-tree.jpg"
+ },
+ {
+  "title": "Cabin On The Lake",
+  "cat": "Country",
+  "file": "country-cabin-on-the-lake.jpg"
+ },
+ {
+  "title": "Colt In The Wild",
+  "cat": "Country",
+  "file": "country-colt-in-the-wild.jpg"
+ },
+ {
+  "title": "House In The Vines",
+  "cat": "Country",
+  "file": "country-house-in-the-vines.jpg"
+ },
+ {
+  "title": "Long Country Road",
+  "cat": "Country",
+  "file": "country-long-country-road.jpg"
+ },
+ {
+  "title": "Maui Falls",
+  "cat": "Country",
+  "file": "country-maui-falls.jpg"
+ },
+ {
+  "title": "Prairie Tree",
+  "cat": "Country",
+  "file": "country-prairie-tree.jpg"
+ },
+ {
+  "title": "Sweeping Vinyard",
+  "cat": "Country",
+  "file": "country-sweeping-vinyard.jpg"
+ },
+ {
+  "title": "Wine Splash",
+  "cat": "Country",
+  "file": "country-wine-splash.jpg"
+ },
+ {
+  "title": "Rainforest Falls",
+  "cat": "Country",
+  "file": "country-rainforest-falls.jpg"
+ },
+ {
+  "title": "Ablaze",
+  "cat": "Color",
+  "file": "color-ablaze.jpg"
+ },
+ {
+  "title": "Bikini Bottom",
+  "cat": "Color",
+  "file": "color-bikini-bottom.jpg"
+ },
+ {
+  "title": "Chamois",
+  "cat": "Color",
+  "file": "color-chamois.jpg"
+ },
+ {
+  "title": "Clean Green",
+  "cat": "Color",
+  "file": "color-clean-green.jpg"
+ },
+ {
+  "title": "Dafodil",
+  "cat": "Color",
+  "file": "color-dafodil.jpg"
+ },
+ {
+  "title": "Flint Gray",
+  "cat": "Color",
+  "file": "color-flint-gray.jpg"
+ },
+ {
+  "title": "Gypsy Red",
+  "cat": "Color",
+  "file": "color-gypsy-red.jpg"
+ },
+ {
+  "title": "Lake Superior",
+  "cat": "Color",
+  "file": "color-lake-superior.jpg"
+ },
+ {
+  "title": "Marsh Green",
+  "cat": "Color",
+  "file": "color-marsh-green.jpg"
+ },
+ {
+  "title": "Plaster",
+  "cat": "Color",
+  "file": "color-plaster.jpg"
+ },
+ {
+  "title": "Safety Orange",
+  "cat": "Color",
+  "file": "color-safety-orange.jpg"
+ },
+ {
+  "title": "Spanish Redwood",
+  "cat": "Color",
+  "file": "color-spanish-redwood.jpg"
+ },
+ {
+  "title": "Sunrise",
+  "cat": "Color",
+  "file": "color-sunrise.jpg"
+ },
+ {
+  "title": "Tan Crackle",
+  "cat": "Color",
+  "file": "color-tan-crackle.jpg"
+ },
+ {
+  "title": "White Artisan Porcelain",
+  "cat": "Color",
+  "file": "color-white-artisan-porcelain.jpg"
+ },
+ {
+  "title": "Grey Distressed",
+  "cat": "Color",
+  "file": "color-grey-distressed.jpg"
+ },
+ {
+  "title": "Kanga",
+  "cat": "Color",
+  "file": "color-kanga.jpg"
+ },
+ {
+  "title": "Moroccan Tile",
+  "cat": "Color",
+  "file": "color-moroccan-tile.jpg"
+ },
+ {
+  "title": "Spanish Stucco",
+  "cat": "Color",
+  "file": "color-spanish-stucco.jpg"
+ },
+ {
+  "title": "Teal Gold Aged",
+  "cat": "Color",
+  "file": "color-teal-gold-aged.jpg"
+ },
+ {
+  "title": "Weathered Patina",
+  "cat": "Color",
+  "file": "color-weathered-patina.jpg"
+ },
+ {
+  "title": "White",
+  "cat": "Color",
+  "file": "color-white.jpg"
  }
 ]

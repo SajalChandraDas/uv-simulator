@@ -1,10 +1,29 @@
 How to add or remove artwork
 ============================
 
-1. Put the image (JPG, about 1500-2500 px wide) in the "art" folder.
-2. Put a small copy (about 320 px) with the same file name in the "thumbs" folder.
-3. Open artwork.json and add one line for it, for example:
+The simulator reads its artwork library from this website folder on GitHub
+(github.com/sajalchandradas/uv-simulator). Changes appear on all simulators
+1-2 minutes after you commit.
+
+ADD A DESIGN
+1. Open the repository on GitHub, open the "art" folder, click
+   "Add file" > "Upload files" and drop in the image.
+   - JPG, about 1800-2500 px wide. Use a simple file name without spaces,
+     for example beach-sunset-waves.jpg
+2. (Optional) Upload a small copy, about 320 px wide, with the same file name
+   into the "thumbs" folder. This only makes the thumbnails load faster.
+3. Open artwork.json, click the pencil icon and add one line, for example:
      {"title": "Sunset Waves", "cat": "Beach", "file": "beach-sunset-waves.jpg"},
-   "cat" is the category tab it appears under. A new category name creates a new tab.
-4. To remove artwork, delete its line from artwork.json.
-5. Drag the whole folder onto your Netlify site's Deploys page to update.
+   "title" is the name customers see, "cat" is the category tab.
+   A new category name automatically creates a new tab.
+4. Click "Commit changes".
+
+REMOVE A DESIGN
+Delete its line from artwork.json and commit. (The image file can stay.)
+
+CATEGORIES
+Abstract, Beach, City, Country and Color are set up now. Small texture
+images in the Color category (under 1000 px) repeat across the surface
+like a real finish instead of being stretched.
+
+Customers' own uploads are never stored. They stay in the visitor's browser.
