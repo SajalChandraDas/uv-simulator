@@ -46,7 +46,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(1.8rem,4.4vw,2.6re
 /* Choice page */
 .choice{display:flex;flex-direction:column;gap:36px}
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
-.card{display:flex;flex-direction:column;align-items:center;gap:18px;background:none;border:0;padding:0;cursor:pointer}
+.card{text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:center;gap:18px;background:none;border:0;padding:0;cursor:pointer}
 .card .ph{width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;box-shadow:0 10px 26px rgba(16,40,40,.16);background:var(--soft)}
 .card .ph canvas{width:100%;height:100%;display:block;transition:transform .5s}
 .card:hover .ph canvas{transform:scale(1.04)}
@@ -1358,8 +1358,21 @@ function finishDraw(){ const d=st.draw; if (d&&d.smart){ if (!d.union) return; s
 
 
 /* ---------- Pages & rooms ---------- */
-function show(v){ $("choice").hidden=v!=="choice"; $("sim").hidden=v!=="sim"; window.scrollTo(0,0); if (v==="sim") requestAnimationFrame(drawOverlay); }
-function setRoom(r,vi=0){ st.room=r; st.variant=vi; st.draw=null; st.compare=false; st.sel=0; st.moved=false; st.editPts=devEdit&&r!=="own";
+let readingRoomURL=false;
+function roomURL(room,variant=0){
+  const url=new URL(location.href);
+  url.hash="";
+  if(room) url.searchParams.set("room",room); else url.searchParams.delete("room");
+  if(room&&variant>0) url.searchParams.set("sample",variant); else url.searchParams.delete("sample");
+  return url;
+}
+function updateRoomURL(room,variant=0){
+  const url=roomURL(room,variant);
+  if(url.href!==location.href) history[readingRoomURL?"replaceState":"pushState"](null,"",url.href);
+  document.title=room?(room==="own"?"Your Room":room[0].toUpperCase()+room.slice(1))+" Simulator | UV Print Simulator":"UV Print Simulator";
+}
+function show(v){ if(v==="choice") updateRoomURL(null); $("choice").hidden=v!=="choice"; $("sim").hidden=v!=="sim"; window.scrollTo(0,0); if (v==="sim") requestAnimationFrame(drawOverlay); }
+function setRoom(r,vi=0){ updateRoomURL(r,vi); st.room=r; st.variant=vi; st.draw=null; st.compare=false; st.sel=0; st.moved=false; st.editPts=devEdit&&r!=="own";
   const list=VARIANTS[r], sc=list?list[vi]:OWN, a=sc.areas[0], art=a&&ART.get(a.art); if (art) st.cat=art.cat; show("sim"); renderPicker(); loadScene(sc); }
 const pickThumbs={};
 function roomThumb(src,w,h,cb){ if (pickThumbs[src+w]) return cb(pickThumbs[src+w]); const im=new Image(); im.onload=()=>{ const c=cv(w*2,h*2), r=w/h, sw=Math.min(im.width,im.height*r), sh=sw/r;
@@ -1368,7 +1381,7 @@ function renderPicker(){ const list=VARIANTS[st.room], el=$("picker"); el.hidden
   list.forEach((sc,i)=>{ const b=document.createElement("button"); b.type="button"; b.className="pick"; b.setAttribute("aria-pressed",i===st.variant);
     b.setAttribute("aria-label",`${sc.name} ${i?"sample "+i:"main"}`); roomThumb(sc.image,108,68,c=>{ const k=c.cloneNode(); k.getContext("2d").drawImage(c,0,0); b.prepend(k); });
     b.insertAdjacentText("beforeend",i?`Sample ${i}`:"Main"); b.onclick=()=>{ if (i!==st.variant) setRoom(st.room,i); }; el.appendChild(b); }); }
-function loadOwnPhoto(src){ OWN.image=src; OWN.w=0; OWN.h=0; OWN.areas=[]; OWN.fg=[]; st.sel=0; st.room="own"; st.ownStep=1; show("sim"); loadScene(OWN); }
+function loadOwnPhoto(src){ updateRoomURL("own"); OWN.image=src; OWN.w=0; OWN.h=0; OWN.areas=[]; OWN.fg=[]; st.sel=0; st.room="own"; st.ownStep=1; show("sim"); loadScene(OWN); }
 /* uploads: big photos are scaled down, small web images are scaled up smoothly in steps (no blocky, blotchy look on large surfaces) */
 function showImageError(message){ const el=$("imageError"); el.textContent=message; el.hidden=false; }
 function readImage(file,max,cb){
@@ -1387,10 +1400,10 @@ function thumbInto(el,art,size){ if (art.driveId&&!art.thumb&&!art.thumbUrl){ lo
 const ICON_UP='<svg class="icon" viewBox="0 0 24 24"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg>';
 
 function buildUI(){
-  $("cards").innerHTML=Object.entries(SCENES).map(([k,s])=>`<button class="card" type="button" data-room="${k}"><div class="ph"></div><span class="pill">${s.name} Simulator</span></button>`).join("");
+  $("cards").innerHTML=Object.entries(SCENES).map(([k,s])=>`<a class="card" href="${roomURL(k).href}" data-room="${k}"><div class="ph"></div><span class="pill">${s.name} Simulator</span></a>`).join("");
   for (const [k,s] of Object.entries(SCENES)){ const ph=document.querySelector(`[data-room="${k}"] .ph`), im=new Image();
     im.onload=()=>{ const c=cv(640,400), sw=Math.min(im.width,im.height*1.6), sh=sw/1.6; c.getContext("2d").drawImage(im,(im.width-sw)/2,(im.height-sh)/2,sw,sh,0,0,640,400); ph.appendChild(c); }; im.src=s.image; }
-  $("cards").onclick=e=>{ const b=e.target.closest("[data-room]"); if (b) setRoom(b.dataset.room); };
+  $("cards").onclick=e=>{ const b=e.target.closest("[data-room]"); if (b&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey){ e.preventDefault(); setRoom(b.dataset.room); } };
   $("ownBtn").onclick=()=>setRoom("own"); $("backBtn").onclick=()=>{ st.draw=null; show("choice"); };
   const pick=()=>$("roomFile").click();
   $("emptyUpload").onclick=pick; $("changePhoto").onclick=pick; $("empty").addEventListener("click",e=>{ const b=e.target.closest("[data-sample]"); if (b) loadOwnPhoto(SCENES[b.dataset.sample].image); });
@@ -1569,9 +1582,23 @@ buildUI();
 loadDriveLibrary();
 // tolerate typos in pasted links: "#own\", "#Kitchen/", "?room=bath" etc.
 const ROOM_ALIAS={kitchen:"kitchen",bathroom:"bathroom",bath:"bathroom",office:"office",own:"own",upload:"own",yourroom:"own",room:"own"};
-const rawRoom=(new URLSearchParams(location.search).get("room")||decodeURIComponent(location.hash.slice(1))).toLowerCase().replace(/[^a-z]/g,"");
-const startHash=ROOM_ALIAS[rawRoom]||Object.keys(ROOM_ALIAS).filter(k=>rawRoom.startsWith(k)).map(k=>ROOM_ALIAS[k]).pop()||rawRoom;
-if (SCENES[startHash]) setRoom(startHash); else if (startHash==="own") setRoom("own"); else if (devEdit) setRoom("bathroom"); else show("choice");
+function readRoomURL(){
+  readingRoomURL=true;
+  try{
+    const params=new URLSearchParams(location.search);
+    let hash=location.hash.slice(1); try{ hash=decodeURIComponent(hash); }catch(e){}
+    const rawRoom=(params.get("room")||hash).toLowerCase().replace(/[^a-z]/g,"");
+    const room=ROOM_ALIAS[rawRoom]||Object.keys(ROOM_ALIAS).filter(k=>rawRoom.startsWith(k)).map(k=>ROOM_ALIAS[k]).pop()||rawRoom;
+    const sample=params.get("sample")||"0", variant=/^[0-3]$/.test(sample)?Number(sample):0;
+    if(SCENES[room]) setRoom(room,variant);
+    else if(room==="own") setRoom("own");
+    else if(devEdit) setRoom("bathroom");
+    else{ st.draw=null; show("choice"); }
+  }finally{ readingRoomURL=false; }
+}
+window.addEventListener("popstate",readRoomURL);
+window.addEventListener("hashchange",readRoomURL);
+readRoomURL();
 })();
 </script>
 
