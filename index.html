@@ -300,6 +300,7 @@ body.embed .simhead h1{font-size:clamp(1.3rem,3vw,1.7rem)}
       <button type="button" class="go" id="drawDone">Done</button>
     </div>
     <p class="caption" id="caption"></p>
+    <p id="imageError" role="alert" class="caption" style="color:var(--danger)" hidden></p>
 
     <div class="tabs" role="tablist" aria-label="Print area" id="areaTabs"></div>
     <p class="now" id="now"></p>
@@ -329,7 +330,7 @@ body.embed .simhead h1{font-size:clamp(1.3rem,3vw,1.7rem)}
     </div>
 
     <div class="cta">
-      <button class="pill" type="button" id="enquire">Enquire Now</button>
+      
       <p class="fine">Images you upload stay on your device. They are never sent to or stored on our website.</p>
       <p class="fine">Works in any desktop or mobile browser. Colours and lighting are a preview; your final print is proofed with you before production.</p>
     </div>
@@ -344,8 +345,8 @@ body.embed .simhead h1{font-size:clamp(1.3rem,3vw,1.7rem)}
     <div class="pvhead"><h2 id="pvTitle">Your design</h2><button class="x" type="button" id="pvClose" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <img id="pvImg" alt="Your finished design">
     <ul class="spec pvspec" id="pvSpec"></ul>
-    <p class="pvnote" id="pvNote">Happy with your design? Click <b>Save image</b>, then use <b>Enquire Now</b> below the simulator to send it to us.</p>
-    <div class="pvact"><button class="pill line sm" type="button" id="pvBack">Keep editing</button><button class="pill line sm" type="button" id="pvSave"><svg class="icon" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Save image</button><button class="pill sm" type="button" id="pvEnquire">Enquire Now</button></div>
+    <p class="pvnote" id="pvNote">Happy with your design? Click <b>Save image</b>, then use the enquiry button on our website to send it to us.</p>
+    <div class="pvact"><button class="pill line sm" type="button" id="pvBack">Keep editing</button><button class="pill line sm" type="button" id="pvSave"><svg class="icon" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Save image</button></div>
   </div>
 </div>
 
@@ -488,8 +489,11 @@ const ART = new Map();
 function renderDef(def,long){ const w=def.aspect>=1?long:Math.round(long*def.aspect), h=def.aspect>=1?Math.round(long/def.aspect):long;
   return def.draw?def.draw(w,h):perPixel(w,h,def.px()); }
 function addArt(meta,full){ ART.set(meta.id,Object.assign(meta,{full:null,data:null,w:0,h:0})); if (full) setFull(ART.get(meta.id),full); return ART.get(meta.id); }
-function setFull(art,canvas){ art.full=canvas; art.w=canvas.width; art.h=canvas.height; art.data=canvas.getContext("2d").getImageData(0,0,art.w,art.h).data; if(!art.thumb) art.thumb=canvas; }
-function ensureFull(id){ const art=ART.get(id); if (!art) return null; if (!art.data && art.def) setFull(art,renderDef(art.def,640)); else if (!art.data && art.driveId && typeof loadDriveArt==="function") loadDriveArt(art); return art; }
+function setFull(art,canvas){
+  const opaque=cv(Math.max(2,canvas.width),Math.max(2,canvas.height)), ox=opaque.getContext("2d");
+  ox.fillStyle="#ffffff"; ox.fillRect(0,0,opaque.width,opaque.height); ox.drawImage(canvas,0,0,opaque.width,opaque.height); canvas=opaque;
+  art.full=canvas; art.w=canvas.width; art.h=canvas.height; art.data=canvas.getContext("2d").getImageData(0,0,art.w,art.h).data; if(!art.thumb) art.thumb=canvas; }
+function ensureFull(id){ const art=ART.get(id); if (!art) return null; if (!art.data && art.def) setFull(art,renderDef(art.def,640)); else if (!art.data && art.driveId && typeof loadDriveArt==="function") loadDriveArt(art).catch(()=>{}); return art; }
 for (const d of ART_DEFS) addArt({id:d.id,title:d.title,cat:d.cat,def:d,thumb:null});
 function ensureThumb(art){ if (!art.thumb && art.def) art.thumb=renderDef(art.def,132); return art.thumb; }
 
@@ -718,6 +722,228 @@ const OFFICE_3 = { id:"office-3", name:"Office", image:"data:image/jpeg;base64,/
     { id:"desk", label:"Desk Front", realW:2.4, realH:.7, material:"smooth", tileIdx:3, art:null, backlit:false, gaps:.8,
       faces:[ {quad:[[522,655],[1020,702],[1020,880],[522,812]], uv:[0,0,1,1]} ],
       holes:[ [[930,722],[1060,712],[1060,880],[885,880],[885,785],[930,780]], ell(716,840,22,22), [[752,800],[800,800],[800,870],[752,870]], [[640,842],[850,842],[850,880],[640,880]] ] } ] };
+/* Photo-specific calibration. Coordinates are in the original room image pixels.
+   Quads run top-left, top-right, bottom-right, bottom-left. Do not infer cabinet
+   joints from image texture: joints and foreground objects are explicitly traced. */
+const calibratedFace=(quad,uv=[0,0,1,1],poly)=>({quad,uv,...(poly?{poly}:{})});
+function calibrate(sc,id,quads,extra={}){
+  const a=sc.areas.find(a=>a.id===id);
+  a.faces=quads.map(q=>calibratedFace(q));
+  delete a.darkHoles; delete a.leafHoles;
+  Object.assign(a,extra);
+}
+function floorArea(sc,quad,realW,realH,poly){
+  sc.areas.push({id:"floor",label:"Shower Floor",realW,realH,material:"tile",tileIdx:1,
+    art:null,backlit:false,faces:[calibratedFace(quad,[0,0,1,1],poly)],holes:[]});
+}
+calibrate(KITCHEN,"backsplash",[
+  [[432,268],[862,272],[862,405],[432,403]],
+  [[862,272],[1273,255],[1273,412],[862,405]]]);
+calibrate(KITCHEN,"cabinets",[
+  [[432,40],[862,67],[862,265],[432,261]],
+  [[862,67],[1273,8],[1273,248],[862,265]]],{seams:[
+    [432,144,862,162],[862,162,1273,120],
+    [561,48,561,263],[724,58,724,266],[1000,47,1000,259],[1102,32,1102,254],[1200,18,1200,251]]});
+calibrate(KITCHEN,"tall",[
+  [[62,0],[179,0],[179,615],[62,648]],
+  [[186,0],[429,17],[429,613],[186,615]],
+  [[1282,0],[1400,0],[1400,639],[1282,623]]],{seams:[
+    [62,101,179,127],[186,128,429,145],[326,137,326,613],
+    [186,421,326,421],[1282,429,1400,434],[1282,507,1400,516]]});
+calibrate(KITCHEN,"base",[[[1067,434],[1273,440],[1273,618],[1067,599]]],{
+  holes:[],seams:[[1067,510,1273,520],[1195,438,1195,611]]});
+calibrate(KITCHEN,"island",[
+  [[291,471],[967,471],[967,750],[291,751]],
+  [[977,470],[1050,462],[1050,716],[977,747]]],{holes:[]});
+
+calibrate(KITCHEN_1,"backsplash",[[[523,302],[1328,275],[1328,426],[523,394]]],{
+  holes:[[[537,344],[549,327],[562,337],[566,315],[576,324],[585,318],[587,340],[599,342],[598,385],[550,389]],
+    [[1185,354],[1236,351],[1242,382],[1235,385],[1235,420],[1185,417]],
+    [[1241,386],[1255,370],[1264,377],[1274,369],[1280,383],[1274,397],[1278,423],[1241,422]],
+    strip([[466,392],[468,367],[474,350],[489,346],[502,352],[510,368]],5),
+    [[486,384],[501,384],[501,399],[486,399]]]});
+calibrate(KITCHEN_1,"cabinets",[
+  [[149,54],[521,123],[521,300],[149,222]],
+  [[521,123],[1330,0],[1330,272],[521,300]]],{seams:[
+    [149,91,521,151],[280,79,280,251],[359,93,359,275],[452,110,452,299],
+    [635,106,635,297],[697,97,697,292],[800,81,800,289],[854,73,854,286],
+    [1000,50,1000,282],[1102,35,1102,278],[1200,20,1200,275]],
+  holes:KITCHEN_1.areas.find(a=>a.id==="cabinets").holes.concat([[[691,247],[856,245],[856,297],[691,298]]])});
+calibrate(KITCHEN_1,"island",[[[218,478],[690,523],[690,779],[218,621]]],{
+  holes:[
+    [[210,450],[233,450],[255,472],[299,477],[299,512],[284,525],[230,511],[215,491]],
+    [[296,473],[375,476],[398,497],[403,534],[477,528],[483,550],[452,562],[383,553],[344,534],[305,527]],
+    strip([[227,509],[226,641]],7),strip([[287,524],[287,646]],6),ell(253,655,55,16),
+    strip([[312,531],[312,680]],7),strip([[394,549],[394,705]],7),ell(352,684,54,19),ell(405,722,56,20),
+    strip([[227,596],[282,591],[297,602],[277,616],[236,615]],5),
+    strip([[315,631],[384,636],[406,649],[380,665],[321,660]],5),
+    strip([[390,564],[416,587],[432,594]],4)]});
+calibrate(KITCHEN_1,"base",[
+  [[525,411],[973,430],[973,600],[525,566]],
+  [[978,431],[1302,450],[1302,624],[978,595]]],{
+  holes:[[[180,431],[534,409],[972,459],[976,700],[700,783],[180,650]]],
+  seams:[[978,509,1302,537],[1135,440,1135,610]]});
+
+calibrate(KITCHEN_2,"backsplash",[[[96,261],[784,301],[784,446],[96,477]]],{
+  holes:[[[429,443],[656,442],[656,456],[429,461]]]});
+calibrate(KITCHEN_2,"cabinets",[[[96,1],[829,133],[829,291],[96,247]]],{
+  seams:[[225,24,225,256],[342,45,342,263],[448,64,448,270],[545,81,545,275],[635,98,635,281],[720,113,720,286],[801,127,801,290]],
+  holes:KITCHEN_2.areas.find(a=>a.id==="cabinets").holes});
+calibrate(KITCHEN_2,"island",[
+  [[330,505],[565,535],[565,784],[330,704]],
+  [[578,535],[1124,497],[1124,651],[578,785]]],{holes:[]});
+calibrate(KITCHEN_2,"base",[
+  [[99,489],[320,479],[320,650],[99,686]],
+  [[320,479],[786,459],[786,579],[320,650]]],{
+  holes:[[[320,487],[790,465],[1208,476],[1208,801],[320,801]]],
+  seams:[[99,534,320,519],[99,580,320,553],[225,483,225,665]]});
+
+calibrate(KITCHEN_3,"backsplash",[
+  [[73,200],[854,217],[854,342],[73,364]],
+  [[854,217],[1331,205],[1331,363],[854,342]]]);
+calibrate(KITCHEN_3,"cabinets",[
+  [[74,3],[854,85],[854,210],[74,193]],
+  [[854,85],[1284,30],[1284,197],[854,210]]],{seams:[
+    [249,21,249,197],[379,35,379,200],[500,48,500,203],[607,60,607,205],[707,70,707,207],
+    [1001,66,1001,206],[1100,54,1100,203],[1191,42,1191,200]]});
+calibrate(KITCHEN_3,"island",[[[469,476],[1099,417],[1099,620],[469,779]]],{holes:[]});
+calibrate(KITCHEN_3,"base",[
+  [[121,383],[854,352],[854,514],[121,578]],
+  [[854,352],[1248,379],[1248,548],[854,514]]],{
+  holes:[[[277,405],[455,445],[1129,386],[1129,630],[455,788],[277,675]]],
+  seams:[[250,378,250,567],[400,371,400,552],[590,363,590,535],[1048,365,1048,531],[1198,375,1198,544]]});
+
+calibrate(BATH,"shower",[
+  [[522,99],[704,151],[704,668],[522,700]],
+  [[704,151],[888,104],[888,704],[704,668]]]);
+calibrate(BATH,"sink",[[[0,0],[468,79],[468,526],[0,552]]],{
+  holes:BATH.areas.find(a=>a.id==="sink").holes.concat([
+    [[36,495],[39,453],[34,413],[43,426],[48,471],[56,428],[62,396],[65,444],[70,469],[82,420],[91,393],[87,449],[81,480],[98,454],[115,422],[109,463],[95,487],[110,494],[104,551],[48,555]],
+    [[419,489],[450,487],[450,522],[419,525]]])});
+calibrate(BATH,"vanity",[[[1,598],[519,551],[519,698],[1,796]]],{
+  seams:[[202,579,202,756],[405,561,405,719],[1,641,202,615],[205,615,402,591],[205,664,402,632],[205,709,402,675]],
+  holes:BATH.areas.find(a=>a.id==="vanity").holes.concat([
+    strip([[106,632],[153,625]],5),strip([[453,587],[489,582]],4),strip([[310,641],[348,634]],4),strip([[310,687],[348,680]],4)])});
+floorArea(BATH,[[704,672],[888,708],[888,797],[522,703]],1.9,1.2);
+
+calibrate(BATH_1,"shower",[
+  [[725,81],[921,204],[921,701],[740,763]],
+  [[921,204],[1287,125],[1287,764],[921,701]]]);
+calibrate(BATH_1,"sink",[
+  [[280,243],[416,274],[416,535],[280,518]],
+  [[416,274],[584,232],[584,536],[416,535]]],{
+  holes:BATH_1.areas.find(a=>a.id==="sink").holes.concat([
+    [[541,508],[548,492],[539,465],[549,476],[556,496],[558,467],[563,481],[565,501],[577,475],[581,475],[577,499],[572,512],[578,516],[576,538],[551,538],[549,515]]])});
+calibrate(BATH_1,"glass",[[[589,24],[703,79],[703,778],[589,822]]],{holes:[]});
+calibrate(BATH_1,"vanity",[
+  [[338,541],[519,567],[519,680],[338,619]],
+  [[525,564],[582,554],[582,671],[525,681]]],{holes:[],seams:[[338,589,519,630]]});
+floorArea(BATH_1,[[921,705],[1287,769],[1340,933],[740,769]],2.2,1.5,
+  [[740,769],[921,705],[1287,769],[1340,933],[1014,860]]);
+
+calibrate(BATH_2,"shower",[
+  [[59,91],[247,228],[247,744],[59,838]],
+  [[247,228],[346,228],[346,744],[247,744]]],{
+  holes:BATH_2.areas.find(a=>a.id==="shower").holes.concat([[[210,665],[346,659],[346,849],[207,849]]])});
+calibrate(BATH_2,"glass",[[[374,105],[500,246],[500,687],[374,811]]],{
+  holes:[[[444,709],[465,696],[499,690],[508,713],[508,846],[444,846]],[[507,590],[546,590],[546,694],[507,694]]]});
+const tubwall2=BATH_2.areas.find(a=>a.id==="tubwall");
+tubwall2.holes.push(strip([[697,399],[697,433],[700,473],[703,513],[702,551],[695,583],[685,598],[678,594],[672,577],[672,553]],10));
+
+calibrate(BATH_3,"shower",[
+  [[174,53],[275,190],[275,687],[174,725]],
+  [[275,190],[470,218],[470,701],[275,687]]],{
+  holes:BATH_3.areas.find(a=>a.id==="shower").holes.concat([
+    [[0,665],[145,614],[225,596],[303,590],[340,596],[361,610],[367,642],[363,691],[353,740],[310,795],[0,900]],
+    [[200,227],[242,257],[242,498],[200,508]]])});
+calibrate(BATH_3,"sink",[[[834,239],[1400,0],[1400,535],[834,502]]],{
+  holes:[
+    [[877,283],[886,276],[956,244],[965,244],[969,253],[969,449],[962,457],[886,460],[878,455]],
+    [[1054,202],[1064,191],[1240,96],[1258,94],[1274,104],[1276,435],[1268,452],[1067,457],[1056,449]],
+    [[844,318],[867,313],[867,403],[844,403]],[[993,249],[1030,248],[1030,371],[993,371]],
+    [[1310,111],[1332,95],[1369,95],[1369,298],[1310,298]],
+    [[980,421],[999,411],[1005,397],[1021,406],[1036,400],[1045,415],[1062,408],[1074,417],[1087,416],[1094,432],[1108,435],[1100,452],[1081,459],[1068,468],[1067,508],[1027,514],[1016,487],[1018,466],[998,458],[983,445]],
+    strip([[884,491],[887,479],[895,475],[902,479],[904,493]],5),
+    [[882,489],[911,489],[911,505],[882,505]],[[914,495],[933,495],[933,506],[914,506]],
+    strip([[1118,510],[1120,480],[1129,470],[1141,471],[1150,481],[1150,491]],7),
+    [[1115,508],[1162,510],[1162,524],[1115,522]],[[1199,510],[1216,510],[1216,527],[1199,527]]
+  ]});
+calibrate(BATH_3,"vanity",[[[766,514],[1400,583],[1400,933],[766,642]]],{
+  seams:[[797,518,797,660],[887,528,887,710],[1000,541,1000,774],[1203,562,1203,877],
+    [798,552,887,566],[887,580,1000,608],[887,648,1000,681],
+    [1203,630,1400,664],[1203,726,1400,783],[1203,836,1400,913]],
+  holes:[strip([[897,552],[941,559]],5),strip([[897,615],[942,624]],5),strip([[897,686],[941,700]],5),
+    strip([[827,571],[827,601]],5),strip([[985,618],[985,653]],6),
+    strip([[1269,607],[1335,616]],7),strip([[1267,719],[1337,736]],7),strip([[1268,859],[1338,882]],7)]});
+
+calibrate(OFFICE,"feature",[[[485,151],[958,151],[958,540],[485,540]]]);
+calibrate(OFFICE,"desk",[[[203,665],[1197,665],[1197,823],[203,823]]],{
+  seams:[[458,665,458,823],[950,665,950,823]],
+  holes:OFFICE.areas.find(a=>a.id==="desk").holes});
+for(const sc of [OFFICE_1,OFFICE_2]){
+  calibrate(sc,"feature",[[[477,179],[891,186],[891,572],[477,580]]]);
+}
+calibrate(OFFICE_1,"desk",[
+  [[477,670],[597,658],[597,800],[477,821]],
+  [[632,659],[855,634],[855,754],[632,788]],
+  [[881,626],[959,617],[959,776],[881,791]]]);
+calibrate(OFFICE_2,"desk",[
+  [[478,660],[595,648],[595,795],[478,814]],
+  [[626,648],[854,627],[854,748],[626,784]],
+  [[882,618],[958,609],[958,771],[882,784]]]);
+/* Each pane repeats the complete design; mullions are outside all six masks. */
+OFFICE_2.areas.find(a=>a.id==="partition").repeatPerFace=true;
+calibrate(OFFICE_3,"feature",[[[662,205],[988,173],[988,543],[662,541]]],{
+  holes:OFFICE_3.areas.find(a=>a.id==="feature").holes.concat([
+    [[881,499],[882,481],[890,469],[901,469],[909,460],[916,470],[925,460],[935,472],[948,468],[958,480],[973,478],[980,493],[972,503],[954,504],[954,539],[879,539]]])});
+calibrate(OFFICE_3,"desk",[[[544,670],[1018,708],[1018,870],[544,806]]],{
+  holes:OFFICE_3.areas.find(a=>a.id==="desk").holes});
+const shower1=BATH_1.areas.find(a=>a.id==="shower");
+shower1.holes=shower1.holes.filter(h=>!(h.length===4&&h[0][0]===870&&h[0][1]===470));
+shower1.holes.push(strip([[885,477],[879,505],[878,545],[879,582],[885,600],[894,602],[900,588],[901,553],[900,520],[901,484]],6));
+// Mask the chair silhouette, leaving the recessed desk panel visible around it.
+for(const sc of [OFFICE_1,OFFICE_2]) sc.areas.find(a=>a.id==="desk").holes=[
+  [[818,685],[832,682],[905,706],[933,667],[957,641],[985,626],[1015,616],[1038,610],[1057,618],[1068,637],
+   [1065,681],[1040,744],[1045,805],[1022,824],[1012,795],[990,793],[1030,842],[1030,855],[1013,855],
+   [985,803],[865,805],[839,857],[824,866],[814,864],[820,846],[836,790],[802,780],[795,765],[800,737],
+   [811,722],[829,711],[839,707],[819,699]]];
+
+// Tight foreground traces avoid carrying rectangular patches of old finish.
+const mainSink=BATH.areas.find(a=>a.id==="sink");
+mainSink.holes=mainSink.holes.filter(h=>!(h.length===8&&h[0][0]===218));
+mainSink.holes=mainSink.holes.filter(h=>!(h.length===28&&h[0][0]===390));
+mainSink.holes.push(ell(234,460,14,16),ell(307,460,14,15),ell(269,460,14,16),
+  strip([[268,460],[285,460],[295,466],[299,478],[299,491]],9),
+  [[207,503],[235,498],[280,495],[335,495],[381,498],[375,512],[360,531],[340,541],[271,546],[239,535],[218,522]]);
+const mainShower=BATH.areas.find(a=>a.id==="shower");
+mainShower.holes=mainShower.holes.filter(h=>!(h.length===4&&h[0][0]===731));
+mainShower.holes.push(strip([[742,353],[746,379],[747,419],[745,453],[739,465],[734,458],[733,431],[736,399],[739,372]],4));
+const kitchenPlant=KITCHEN_1.areas.find(a=>a.id==="backsplash");
+kitchenPlant.holes.shift();
+kitchenPlant.leafHoles=[[[529,316],[601,316],[601,367],[529,367]]];
+kitchenPlant.holes.push([[552,359],[579,359],[580,383],[573,388],[557,387],[553,380]]);
+const officePlant=OFFICE_3.areas.find(a=>a.id==="feature");
+officePlant.holes.pop();
+officePlant.leafHoles=[[[876,454],[985,454],[985,506],[876,506]]];
+const bath2Shower=BATH_2.areas.find(a=>a.id==="shower");
+bath2Shower.holes=bath2Shower.holes.filter(h=>!(h.length===4&&h[0][0]===171&&h[0][1]===488));
+bath2Shower.holes.push(strip([[180,495],[177,528],[173,562],[174,596],[181,611],[190,612],[198,603],[201,583],[197,550],[190,523],[185,501]],5));
+OFFICE_2.areas.find(a=>a.id==="partition").holes=[strip([[402,492],[430,477],[464,466]],4)];
+
+/* Preserve one continuous print across connected planes, using authored physical
+   widths. Repeated partition panes intentionally retain a full print per pane. */
+for(const sc of [KITCHEN,KITCHEN_1,KITCHEN_2,KITCHEN_3,BATH,BATH_1,BATH_2,BATH_3,OFFICE,OFFICE_1,OFFICE_2,OFFICE_3]){
+  for(const a of sc.areas){
+    a.gaps=0;
+    if(a.faces.length>1&&!a.repeatPerFace){
+      const widths=a.faces.map(f=>Math.hypot(f.quad[1][0]-f.quad[0][0],f.quad[1][1]-f.quad[0][1])/
+        Math.max(1,(Math.hypot(f.quad[3][0]-f.quad[0][0],f.quad[3][1]-f.quad[0][1])+Math.hypot(f.quad[2][0]-f.quad[1][0],f.quad[2][1]-f.quad[1][1]))/2));
+      const total=widths.reduce((x,y)=>x+y,0);let u=0;
+      a.faces.forEach((f,i)=>{f.uv=[u/total,0,(u+widths[i])/total,1];u+=widths[i];});
+    }
+  }
+}
+
 const SCENES={ kitchen:KITCHEN, bathroom:BATH, office:OFFICE };
 /* each simulator offers its main room plus the client's sample rooms */
 const VARIANTS={ kitchen:[KITCHEN,KITCHEN_1,KITCHEN_2,KITCHEN_3], bathroom:[BATH,BATH_1,BATH_2,BATH_3], office:[OFFICE,OFFICE_1,OFFICE_2,OFFICE_3] };
@@ -748,23 +974,27 @@ const st={ room:"bathroom", sel:0, light:"original", compare:false, split:.5, ca
 let scene=SCENES.bathroom, base=null, baseCanvas=null, lum=null, ready=false, outImg=null, R=null, E=null, B=null, glowUsed=false;
 const cur=()=>scene.areas[st.sel];
 
+let sceneLoadToken=0;
 function loadScene(sc){
+  const token=++sceneLoadToken;
   scene=sc; ready=false; $("busy").hidden=!sc.image;
   $("empty").hidden=!!sc.image; stage.classList.toggle("is-empty",!sc.image); view.style.visibility=sc.image?"visible":"hidden";
   if (!sc.image){ W=1400; H=841; sizeStage(); svg.innerHTML=""; syncAll(); return; }
   const im=new Image();
   im.onload=()=>{
+    if(token!==sceneLoadToken) return;
     if (!sc.w){ const k=Math.min(1,1400/Math.max(im.width,im.height)); sc.w=Math.round(im.width*k); sc.h=Math.round(im.height*k); }
     W=sc.w; H=sc.h; sizeStage();
     baseCanvas=cv(W,H); const x=baseCanvas.getContext("2d"); x.drawImage(im,0,0,W,H); base=x.getImageData(0,0,W,H).data;
     lum=new Float32Array(W*H); let sr=0,sg=0,sb=0;
     for (let i=0;i<W*H;i++){ const k=i*4; lum[i]=(base[k]*.2126+base[k+1]*.7152+base[k+2]*.0722)/255; sr+=base[k]; sg+=base[k+1]; sb+=base[k+2]; }
     const m=(sr+sg+sb)/3; sceneCast=[1+(sr/m-1)*.3,1+(sg/m-1)*.3,1+(sb/m-1)*.3];
-    lumB=blurLum(lum,W,H,Math.round(Math.max(W,H)/45)); lumM=blurLum(lum,W,H,Math.round(Math.max(W,H)/110)); gapMap=lineMap(lum,W,H);
+    lumB=blurLum(lum,W,H,Math.round(Math.max(W,H)/45)); lumM=blurLum(lum,W,H,Math.round(Math.max(W,H)/110)); gapMap=null;
     outImg=ctx.createImageData(W,H); R=E=B=null; (sc.glass||[]).forEach(g=>g.mask=null);
     for (const a of sc.areas){ ensureFull(a.art); prepArea(a); }
     ready=true; $("busy").hidden=true; st.sel=Math.max(0,Math.min(st.sel,sc.areas.length-1)); syncAll(); requestRender();
   };
+  im.onerror=()=>{ if(token!==sceneLoadToken) return; $("busy").hidden=true; showImageError("The room photo could not be loaded. Please try again."); };
   im.src=sc.image;
 }
 let lumB=null, lumM=null, gapMap=null, sceneCast=[1,1,1];
@@ -800,10 +1030,11 @@ function rectAspect(q,f){ const cx=W/2, cy=H/2, m=[q[0],q[1],q[3],q[2]].map(p=>[
   const n2=m[1].map((v,i)=>k2*v-m[0][i]), n3=m[2].map((v,i)=>k3*v-m[0][i]), nn=n=>(n[0]*n[0]+n[1]*n[1])/(f*f)+n[2]*n[2];
   const r=Math.sqrt(nn(n2)/nn(n3)); return isFinite(r)&&r>0?r:(dist(q[0],q[1])+dist(q[3],q[2]))/Math.max(1,dist(q[0],q[3])+dist(q[1],q[2])); }
 /* real-world widths per face, so art and tiles keep one consistent scale across corners */
-function measureArea(a){ if (a.measured||a.auto) return; a.measured=true; const fl=(scene.focal||.9)*Math.max(W,H);
-  const quads=a.faces.filter(f=>!f.ref); if (!quads.length||quads.length!==a.faces.length) return;
-  const ws=quads.map(f=>rectAspect(f.quad,fl)*(f.realH||a.realH)), tot=ws.reduce((x,y)=>x+y,0); let acc=0;
-  quads.forEach((f,i)=>{ f.uv=[acc/tot,0,(acc+ws[i])/tot,1]; acc+=ws[i]; }); a.realW=tot; }
+function measureArea(a){
+  // Physical dimensions are authored per surface. Camera guesses must never
+  // change the number of tiles or stretch a connected print between visits.
+  a.measured=true;
+}
 /* edges shared by two faces of the same surface = an inside/outside corner */
 function creasesOf(a){ const out=[], key=p=>p[0]+","+p[1];
   for (let i=0;i<a.faces.length;i++) for (let j=i+1;j<a.faces.length;j++){ const A=a.faces[i].quad, B=a.faces[j].quad; if (!A||!B||a.faces[i].ref||a.faces[j].ref) continue;
@@ -835,7 +1066,7 @@ function prepArea(a){ measureArea(a);
     x.globalCompositeOperation="destination-out"; for (const h of holes){ x.beginPath(); h.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p)); x.closePath(); x.fill(); }
     /* "smart" holes: only the matching pixels stay in front.
        leafHoles keep green/dark plant leaves, darkHoles keep dark things (handles, gaps, stool legs). */
-    const smart=[[a.leafHoles,(r,g,b)=>g>=r*.92||(r+g+b)<75],[a.darkHoles,(r,g,b)=>(r+g+b)<a.darkLimit]].filter(s=>s[0]);
+    const smart=[[a.leafHoles,(r,g,b)=>g>r*.88&&g>b*1.25&&g-b>12],[a.darkHoles,(r,g,b)=>(r+g+b)<a.darkLimit]].filter(s=>s[0]);
     for (const [hs] of smart) for (const h of hs){ x.beginPath(); h.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p)); x.closePath(); x.fill(); }
     const d=x.getImageData(0,0,bw,bh).data, al=new Uint8Array(bw*bh);
     for (const [hs,test] of smart){ const lc=cv(bw,bh), lx=lc.getContext("2d"); lx.translate(-x0,-y0); lx.fillStyle="#fff";
@@ -860,7 +1091,7 @@ function prepArea(a){ measureArea(a);
   }
   a.meanB=n?sB/n:.5; a.meanL=n?sL/n:.5; a.meanM=n?sM/n:.5;
   /* each plane keeps a bit more of its own brightness so a corner reads as a corner */
-  for (const f of a.faces) f.plane=a.faces.length>1&&f.meanB?Math.max(.8,Math.min(1.2,Math.pow(f.meanB/a.meanB,.5))):1;
+  for (const [i,f] of a.faces.entries()) f.plane=a.faces.length>1?1-Math.min(i,2)*.035:1;
   a.ox=a.ox||0; a.oy=a.oy||0; if (a.scale==null) a.scale=1; a.dirty=true;
 }
 
@@ -874,15 +1105,15 @@ function artWindow(a,art){ const A=a.realW/a.realH, Ra=art.w/art.h, s=a.scale||1
 const PRINT_BASE=[.95,.95,.94];
 function sample(art,p,q,o){
   if (p<0||p>1||q<0||q>1){ o[0]=PRINT_BASE[0]; o[1]=PRINT_BASE[1]; o[2]=PRINT_BASE[2]; return; }
-  let x=p*art.w-.5, y=q*art.h-.5; x=Math.max(0,Math.min(art.w-1.001,x)); y=Math.max(0,Math.min(art.h-1.001,y));
-  const xi=x|0, yi=y|0, fx=x-xi, fy=y-yi, d=art.data, k=(yi*art.w+xi)*4, k2=k+art.w*4;
+  let x=p*art.w-.5, y=q*art.h-.5; x=Math.max(0,Math.min(art.w-1,x)); y=Math.max(0,Math.min(art.h-1,y));
+  const xi=Math.min(art.w-2,x|0), yi=Math.min(art.h-2,y|0), fx=x-xi, fy=y-yi, d=art.data, k=(yi*art.w+xi)*4, k2=k+art.w*4;
   for (let c=0;c<3;c++){ const t=d[k+c]+(d[k+4+c]-d[k+c])*fx, b=d[k2+c]+(d[k2+4+c]-d[k2+c])*fx; o[c]=(t+(b-t)*fy)/255; } }
 const tmp=[0,0,0];
 function renderArea(a){
   a.layers=[]; const art=ensureFull(a.art); if (!art||!art.data){ a.dirty=false; return; }
   const sk=a.shade==null?.7:a.shade, win=artWindow(a,art), mB=a.meanB, mL=a.meanL, mM=a.meanM;
-  const ex=Math.max(.84,Math.min(1.04,.74+.5*mB)), cr=sceneCast[0]*ex, cg=sceneCast[1]*ex, cb=sceneCast[2]*ex;
-  const T=TILES[a.tileIdx]||TILES[0], nx=a.realW*39.37/T.w, ny=a.realH*39.37/T.h, gu=Math.max(.012,.125/T.w), gv=Math.max(.012,.125/T.h);
+  const cr=1, cg=1, cb=1;
+  const T=TILES[a.tileIdx]||TILES[0], nx=a.realW*39.37/T.w, ny=a.realH*39.37/T.h, gu=.125/T.w, gv=.125/T.h;
   const bnx=a.realW*39.37/8, bny=a.realH*39.37/8;
   for (const f of a.faces){
     const {x0,y0,bw,bh,alpha}=f, col=new Float32Array(bw*bh*3);
@@ -907,13 +1138,15 @@ function renderArea(a){
         else { const rim=e<.13?1.18:1, lens=Math.pow(1-Math.min(1,Math.hypot(fu-.5,fv-.5)*1.6),2)*.14, t=.72;
           r=(tmp[0]*rim*s+lens)*t+base[bk]/255*(1-t); g=(tmp[1]*rim*s+lens)*t+base[bk+1]/255*(1-t); b=(tmp[2]*rim*s+lens)*t+base[bk+2]/255*(1-t); }
       } else {
-        /* printed surface: room light at two scales, gloss picked up from the photo's own reflections, a soft UV sheen, edge shadow, seams and fine grain */
+        /* Opaque printed ink, subtle contact shadows and explicitly traced seams. */
         const L=lum[gi], Lm=lumM[gi], Lb=lumB[gi];
-        const light=(1+(Math.max(.55,Math.min(1.5,Lm/mM))-1)*sk)*(1+(Math.max(.7,Math.min(1.3,Lb/mB))-1)*.25);
-        const gap=a.gaps?1-gapMap[gi]*a.gaps:1;
-        const ao=.86+.14*Math.min(1,f.ao[li]*1.35), sm=f.seam?f.seam[li]:1, s=light*ao*sm*gap*f.plane;
+        // Opaque UV ink replaces the old marble/wood texture. A restrained,
+        // analytic light falloff avoids importing furniture and masking halos.
+        const light=1-sk*.025*Math.max(0,Math.min(1,v));
+        const ao=.97+.03*Math.min(1,f.ao[li]*1.35), sm=f.seam?f.seam[li]:1;
+        const s=light*ao*sm*f.plane;
         sample(art,p,q,tmp); r=tmp[0]*s*cr; g=tmp[1]*s*cg; b=tmp[2]*s*cb;
-        const refl=sk?Math.max(0,Lm-Lb-.035)*.9:0, d=u*.75+v*.45-.62, sheen=a.backlit?0:.075*Math.exp(-d*d/.012), grain=(((X*73856093)^(Y*19349663))&255)/255*.022-.011;
+        const refl=0, sheen=0, grain=0;
         if (a.material==="tile"){
           let tu=u*nx; const tv=v*ny, row=Math.floor(tv); if (T.brick&&(row&1)) tu+=.5;
           const fu=tu-Math.floor(tu), fv=tv-row, eu=Math.min(fu,1-fu), ev=Math.min(fv,1-fv);
@@ -945,7 +1178,7 @@ function draw(){
     const {x0,y0,bw,bh,al,ed}=gl.mask;
     for (let j=0;j<bh;j++) for (let i=0;i<bw;i++){ const li=j*bw+i, gi=(y0+j)*W+x0+i, k=gi*3;
       if (ed[li]){ const t=ed[li]/255; for (let c=0;c<3;c++) R[k+c]=R[k+c]*(1-t)+B[k+c]*t; continue; }
-      if (!al[li]) continue; const L=lum[gi], refl=Math.min(1,Math.max(0,(L-.42)/.3))*.85;
+      if (!al[li]) continue; const refl=.025;
       for (let c=0;c<3;c++) R[k+c]=(R[k+c]*.94+.012)*(1-refl)+B[k+c]*refl; } }
   for (let i=0;i<N;i++){ const k=i*3, q=i*4; o[q]=Math.min(255,(R[k]*tr+E[k])*255); o[q+1]=Math.min(255,(R[k+1]*tg+E[k+1])*255); o[q+2]=Math.min(255,(R[k+2]*tb+E[k+2])*255); o[q+3]=255; }
   ctx.putImageData(outImg,0,0);
@@ -1031,8 +1264,8 @@ const pinch={ids:new Map(),d0:0,s0:1};
 view.addEventListener("pointerdown",e=>{ pinch.ids.set(e.pointerId,[e.clientX,e.clientY]); if (pinch.ids.size===2){ const a=cur(); if (!a||!a.art) return; const [p1,p2]=[...pinch.ids.values()]; pinch.d0=Math.hypot(p1[0]-p2[0],p1[1]-p2[1]); pinch.s0=a.scale||1; drag=null; } },true);
 view.addEventListener("pointermove",e=>{ if (!pinch.ids.has(e.pointerId)) return; pinch.ids.set(e.pointerId,[e.clientX,e.clientY]);
   if (pinch.ids.size===2&&pinch.d0){ const [p1,p2]=[...pinch.ids.values()], d=Math.hypot(p1[0]-p2[0],p1[1]-p2[1]); setScale(pinch.s0*d/pinch.d0); } },true);
-/* mouse wheel only resizes with Ctrl (or pinch on a trackpad), so normal scrolling still scrolls the page */
-view.addEventListener("wheel",e=>{ const a=cur(); if (!e.ctrlKey&&!e.metaKey) return; if (!a||!a.art||!ready||st.draw||st.compare) return; e.preventDefault(); setScale((a.scale||1)*Math.exp(-e.deltaY*.0015)); },{passive:false});
+/* Wheel zoom applies over the preview; scrolling elsewhere still moves the page. */
+view.addEventListener("wheel",e=>{ const a=cur(); if (!a||!a.art||!ready||st.draw||st.compare) return; e.preventDefault(); setScale((a.scale||1)*Math.exp(-Math.max(-240,Math.min(240,e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?H:1)))*.0015)); },{passive:false});
 function setScale(s){ const a=cur(); if (!a) return; a.scale=Math.max(.3,Math.min(4,s)); a.dirty=true; if (typeof syncScale==="function") syncScale(); requestRender(); }
 view.addEventListener("pointerup",endDrag); view.addEventListener("pointercancel",endDrag);
 
@@ -1137,14 +1370,20 @@ function renderPicker(){ const list=VARIANTS[st.room], el=$("picker"); el.hidden
     b.insertAdjacentText("beforeend",i?`Sample ${i}`:"Main"); b.onclick=()=>{ if (i!==st.variant) setRoom(st.room,i); }; el.appendChild(b); }); }
 function loadOwnPhoto(src){ OWN.image=src; OWN.w=0; OWN.h=0; OWN.areas=[]; OWN.fg=[]; st.sel=0; st.room="own"; st.ownStep=1; show("sim"); loadScene(OWN); }
 /* uploads: big photos are scaled down, small web images are scaled up smoothly in steps (no blocky, blotchy look on large surfaces) */
-function readImage(file,max,cb){ const im=new Image(), url=URL.createObjectURL(file); im.onload=()=>{ URL.revokeObjectURL(url);
+function showImageError(message){ const el=$("imageError"); el.textContent=message; el.hidden=false; }
+function readImage(file,max,cb){
+  $("imageError").hidden=true;
+  if(!file.type.startsWith("image/")){ showImageError("Choose a JPG, PNG, WebP or another supported image file."); return; }
+  const im=new Image(), url=URL.createObjectURL(file);
+  im.onerror=()=>{ URL.revokeObjectURL(url); $("busy").hidden=true; showImageError("This image could not be opened. Please save it as JPG or PNG and try again."); };
+  im.onload=()=>{ URL.revokeObjectURL(url);
   const L=Math.max(im.width,im.height), target=Math.min(max,Math.max(L,1800)); let src=im, w=im.width, h=im.height;
   if (L>=target){ const k=target/L, c=cv(Math.round(w*k),Math.round(h*k)), x=c.getContext("2d"); x.imageSmoothingQuality="high"; x.drawImage(im,0,0,c.width,c.height); cb(c); return; }
   while (Math.max(w,h)<target){ const k=Math.min(2,target/Math.max(w,h)), c=cv(Math.round(w*k),Math.round(h*k)), x=c.getContext("2d");
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality="high"; x.filter=k>1.3?"blur(0.4px)":"none"; x.drawImage(src,0,0,c.width,c.height); src=c; w=c.width; h=c.height; }
   cb(src); }; im.src=url; }
 function busy(fn){ $("busy").hidden=false; setTimeout(()=>{ fn(); $("busy").hidden=true; },30); }
-function thumbInto(el,art,size){ if (art.driveId&&!art.thumb&&!art.thumbUrl){ loadDriveArt(art).then(()=>thumbInto(el,art,size)).catch(()=>{}); return; } if (art.thumbUrl&&!art.thumb){ const im=new Image(); im.alt=""; im.loading="lazy"; im.src=art.thumbUrl; im.style.cssText="width:100%;height:100%;object-fit:cover;display:block"; im.onerror=()=>{ im.remove(); loadDriveArt(art).then(()=>thumbInto(el,art,size)); }; el.appendChild(im); return; } const c=cv(size,size), x=c.getContext("2d"), t=ensureThumb(art); if (t){ const s=Math.max(size/t.width,size/t.height); x.drawImage(t,(size-t.width*s)/2,(size-t.height*s)/2,t.width*s,t.height*s); } el.appendChild(c); }
+function thumbInto(el,art,size){ if (art.driveId&&!art.thumb&&!art.thumbUrl){ loadDriveArt(art).then(()=>thumbInto(el,art,size)).catch(()=>{}); return; } if (art.thumbUrl&&!art.thumb){ const im=new Image(); im.alt=""; im.loading="lazy"; im.src=art.thumbUrl; im.style.cssText="width:100%;height:100%;object-fit:cover;display:block"; im.onerror=()=>{ im.remove(); loadDriveArt(art).then(()=>thumbInto(el,art,size)).catch(()=>{ el.title=art.title+" — image unavailable"; }); }; el.appendChild(im); return; } const c=cv(size,size), x=c.getContext("2d"), t=ensureThumb(art); if (t){ const s=Math.max(size/t.width,size/t.height); x.drawImage(t,(size-t.width*s)/2,(size-t.height*s)/2,t.width*s,t.height*s); } el.appendChild(c); }
 const ICON_UP='<svg class="icon" viewBox="0 0 24 24"><path d="M12 16V5M7 10l5-5 5 5M5 20h14"/></svg>';
 
 function buildUI(){
@@ -1173,7 +1412,7 @@ function buildUI(){
     if (b.dataset.up){ $("artFile").click(); return; } if (!a) return;
     if (b.dataset.none){ a.art=null; a.dirty=true; syncAll(); requestRender(); return; }
     const id=b.dataset.id, art=ART.get(id), apply=()=>{ ensureFull(id); a.art=id; a.ox=0; a.oy=0; a.dirty=true; syncAll(); requestRender(); };
-    if (art.data) apply(); else if (art.driveId){ $("busy").hidden=false; loadDriveArt(art).then(()=>{ $("busy").hidden=true; apply(); }); } else busy(apply); };
+    if (art.data) apply(); else if (art.driveId){ $("busy").hidden=false; loadDriveArt(art).then(()=>{ $("busy").hidden=true; apply(); }).catch(()=>{ $("busy").hidden=true; showImageError("This artwork could not be loaded. Please try another image."); }); } else busy(apply); };
   $("artFile").onchange=e=>{ const f=e.target.files[0]; if (!f) return; readImage(f,2000,c=>{ const art=addArt({id:"u"+Date.now(),title:f.name.replace(/\.[^.]+$/,"").slice(0,32)||"Your artwork",cat:"Uploads"},c);
       st.cat="Uploads"; const a=cur(); if (a){ a.art=art.id; a.ox=0; a.oy=0; a.dirty=true; } syncAll(); requestRender(); }); e.target.value=""; };
   $("matSeg").onclick=e=>{ const b=e.target.closest("[data-mat]"), a=cur(); if (!b||!a) return; a.material=b.dataset.mat; a.dirty=true; syncAll(); requestRender(); };
@@ -1184,8 +1423,8 @@ function buildUI(){
   $("lights").onclick=e=>{ const b=e.target.closest("[data-light]"); if (!b) return; st.light=b.dataset.light; syncControls(); requestRender(); };
   $("backlit").onchange=e=>{ const a=cur(); if (!a) return; a.backlit=e.target.checked; syncAll(); requestRender(); };
   $("compareBtn").onclick=()=>{ if (!ready) return; st.compare=!st.compare; st.split=.5; st.draw=null; syncAll(); requestRender(); };
-  $("doneBtn").onclick=openPreview; $("enquire").onclick=()=>EMBED?openContact():openEnquiry();
-  $("pvClose").onclick=closePreview; $("pvBack").onclick=closePreview; $("pvSave").onclick=saveImage; $("pvEnquire").onclick=()=>{ closePreview(); EMBED?openContact():openEnquiry(); };
+  $("doneBtn").onclick=openPreview; 
+  $("pvClose").onclick=closePreview; $("pvBack").onclick=closePreview; $("pvSave").onclick=saveImage; 
   $("preview").onclick=e=>{ if (e.target.id==="preview") closePreview(); };
   $("mClose").onclick=closeModal; $("modal").onclick=e=>{ if (e.target.id==="modal") closeModal(); };
   $("mForm").onsubmit=e=>{ e.preventDefault(); const nameOk=!!$("fName").value.trim(), mailOk=/\S+@\S+\.\S+/.test($("fEmail").value);
@@ -1210,7 +1449,7 @@ function syncAll(){
   $("compareBtn").setAttribute("aria-pressed",st.compare); stage.classList.toggle("comparing",st.compare);
   $("chip").innerHTML=st.compare?"Drag to compare":`<svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>Drag to position`;
   $("chip").style.opacity=(scene.image&&!st.draw&&scene.areas.length&&(!st.moved||st.compare))?1:0;
-  $("caption").textContent=st.compare?"Drag across the photo to compare with the original.":"";
+  $("caption").textContent=st.compare?"Drag across the photo to compare with the original.":"Drag to position your artwork. Scroll over the photo or pinch to zoom. Use the size slider for precise control.";
   $("caption").hidden=!$("caption").textContent||!!st.draw;
   $("editbox").hidden=!(devEdit&&!own);
   syncDraw(); renderSurfaces(); syncControls(); renderArts(); drawOverlay();
@@ -1235,7 +1474,14 @@ function renderArts(){
 }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function snapshot(){ const c=st.compare; st.compare=false; draw(); const url=view.toDataURL("image/jpeg",.92); st.compare=c; requestRender(); return url; }
-function saveImage(){ if (!ready) return; const l=document.createElement("a"); l.href=snapshot(); l.download=`${scene.name.toLowerCase().replace(/\s+/g,"-")}-print-design.jpg`; document.body.appendChild(l); l.click(); l.remove(); }
+function saveImage(){
+  if (!ready) return;
+  const data=atob(snapshot().split(",")[1]), bytes=new Uint8Array(data.length);
+  for(let i=0;i<data.length;i++) bytes[i]=data.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([bytes],{type:"image/jpeg"})), l=document.createElement("a");
+  l.href=url; l.download=`${scene.name.toLowerCase().replace(/\s+/g,"-")}-print-design.jpg`;
+  document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
 let lastFocus=null;
 function openEnquiry(){
   lastFocus=document.activeElement; $("mImg").hidden=!ready; if (ready) $("mImg").src=snapshot();
@@ -1316,7 +1562,7 @@ async function loadDriveLibrary(){
 if (EMBED) document.body.classList.add("embed");
 /* On the Wix site the page's own "Enquire Now" button (a normal Wix button under the simulator) links to Contact,
    so the simulator's buttons are hidden unless a contact link is given in the embed address. */
-if (EMBED && !new URLSearchParams(location.search).get("contact")) document.body.classList.add("no-enquire");
+document.body.classList.add("no-enquire");
 buildUI();
 loadDriveLibrary();
 // tolerate typos in pasted links: "#own\", "#Kitchen/", "?room=bath" etc.
