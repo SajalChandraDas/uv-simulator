@@ -1549,8 +1549,7 @@ async function loadDriveLibrary(){
     /* swap the built-in samples for the client's library */
     for (const [id,a] of [...ART]) if (a.def) ART.delete(id);
     CATS=cats.concat("Uploads");
-    let n=0; const pick=()=>arts[(n++)%arts.length].id;
-    for (const sc of Object.values(VARIANTS).flat()) sc.areas.forEach(a=>{ if (a.art) a.art=pick(); });
+    // Loading catalogue choices must not apply or change any artwork.
     NEW_ART.splice(0,NEW_ART.length,...arts.slice(0,6).map(a=>a.id));
     $("cats").innerHTML=CATS.map(c=>`<button class="tab" role="tab" type="button" data-c="${c}">${esc(c)}</button>`).join("");
     const first=cur()&&ART.get(cur().art); st.cat=first?first.cat:CATS[0];
@@ -1563,6 +1562,9 @@ if (EMBED) document.body.classList.add("embed");
 /* On the Wix site the page's own "Enquire Now" button (a normal Wix button under the simulator) links to Contact,
    so the simulator's buttons are hidden unless a contact link is given in the embed address. */
 document.body.classList.add("no-enquire");
+// Start every sample photo as photographed. Only an explicit artwork choice
+// applies a print; asynchronous catalogue loading never changes a surface.
+for (const sc of Object.values(VARIANTS).flat()) sc.areas.forEach(a=>{ a.art=null; });
 buildUI();
 loadDriveLibrary();
 // tolerate typos in pasted links: "#own\", "#Kitchen/", "?room=bath" etc.
